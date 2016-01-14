@@ -18,7 +18,7 @@ func usage() {
 	os.Exit(1)
 }
 
-func describeSecurityGroups(svc *ec2.EC2) string {
+func describeSecurityGroups(e *ec2.EC2) (string, error) {
 	params := &ec2.DescribeSecurityGroupsInput{
 		Filters: []*ec2.Filter{
 			&ec2.Filter{
@@ -29,11 +29,16 @@ func describeSecurityGroups(svc *ec2.EC2) string {
 			},
 		},
 	}
-	resp, _ := svc.DescribeSecurityGroups(params)
-	if len(resp.SecurityGroups) > 0 {
-		return *resp.SecurityGroups[0].GroupId
+	r, err := e.DescribeSecurityGroups(params)
+	if err != nil {
+		return "", err
 	}
-	return ""
+
+	if len(r.SecurityGroups) == 0 {
+		return "", fmt.Errorf("security group not found")
+	}
+
+	return *r.SecurityGroups[0].GroupId, nil
 }
 
 func main() {
@@ -45,7 +50,7 @@ func main() {
 	}
 
 	sess := session.New()
-	svc := ec2.New(sess)
+	e := ec2.New(sess)
 
 	params := &ec2.DescribeInstancesInput{
 		Filters: []*ec2.Filter{
@@ -58,10 +63,14 @@ func main() {
 		},
 	}
 
-	resp, _ := svc.DescribeInstances(params)
+	resp, _ := e.DescribeInstances(params)
 
 	var instanceId = *resp.Reservations[0].Instances[0].InstanceId
 
 	fmt.Fprintf(os.Stdout, "instance: %s\n", instanceId)
-	fmt.Fprintf(os.Stdout, "sg: %s\n", describeSecurityGroups(svc))
+	r, err := describeSecurityGroups(e)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "err: %s\n", err)
+	}
+	fmt.Fprintf(os.Stdout, "sg: %s\n", r)
 }
