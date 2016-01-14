@@ -18,6 +18,24 @@ func usage() {
 	os.Exit(1)
 }
 
+func describeSecurityGroups(svc *ec2.EC2) string {
+	params := &ec2.DescribeSecurityGroupsInput{
+		Filters: []*ec2.Filter{
+			&ec2.Filter{
+				Name: aws.String("group-name"),
+				Values: []*string{
+					aws.String("addsg"),
+				},
+			},
+		},
+	}
+	resp, _ := svc.DescribeSecurityGroups(params)
+	if len(resp.SecurityGroups) > 0 {
+		return *resp.SecurityGroups[0].GroupId
+	}
+	return ""
+}
+
 func main() {
 	flag.Usage = usage
 	flag.Parse()
@@ -45,5 +63,5 @@ func main() {
 	var instanceId = *resp.Reservations[0].Instances[0].InstanceId
 
 	fmt.Fprintf(os.Stdout, "instance: %s\n", instanceId)
-
+	fmt.Fprintf(os.Stdout, "sg: %s\n", describeSecurityGroups(svc))
 }
