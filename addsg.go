@@ -74,11 +74,11 @@ func getInstance(e *ec2.EC2, instanceIp string) (*ec2.Instance, error) {
 	return r.Reservations[0].Instances[0], nil
 }
 
-func createSecurityGroup(e *ec2.EC2, vpcId string) (string, error) {
+func createSecurityGroup(e *ec2.EC2, vpcId string, sgName string) (string, error) {
 	securityGroupOpts := &ec2.CreateSecurityGroupInput{}
 	securityGroupOpts.VpcId = aws.String(vpcId)
 	securityGroupOpts.Description = aws.String("Created by addsg")
-	securityGroupOpts.GroupName = aws.String("addsg")
+	securityGroupOpts.GroupName = aws.String(sgName)
 
 	r, err := e.CreateSecurityGroup(securityGroupOpts)
 	if err != nil {
@@ -143,7 +143,14 @@ func main() {
 	log.Printf("Found instance id: %+v", i.InstanceId)
 	log.Printf("Found VPC id: %s", *i.VpcId)
 
-	sgId, err := getSecurityGroup(e, *i.VpcId, "addsg")
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Printf("Error getting the hostname: %s", err)
+		os.Exit(1)
+	}
+	sgName := "addsg-" + hostname
+
+	sgId, err := getSecurityGroup(e, *i.VpcId, sgName)
 	if err != nil {
 		log.Printf("Error searching the sg: %s", err)
 		os.Exit(1)
@@ -151,7 +158,7 @@ func main() {
 
 	if sgId == "" {
 		// create the sg
-		sg, err := createSecurityGroup(e, *i.VpcId)
+		sg, err := createSecurityGroup(e, *i.VpcId, sgName)
 		sgId = sg
 		if err != nil {
 			log.Printf("Error creating the sg: %s", err)
