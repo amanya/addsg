@@ -177,11 +177,12 @@ func main() {
 				log.Printf("The IP was already on the sg")
 			} else {
 				log.Printf("Couldn't add IP to sg: %s", err)
+				os.Exit(1)
 			}
 		} else {
 			log.Printf("Couldn't add IP to sg: %s", err)
+			os.Exit(1)
 		}
-		os.Exit(1)
 	}
 
 	s, err := addSecurityGroupToInstance(e, i, sgId)
