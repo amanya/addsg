@@ -13,6 +13,14 @@ import (
 	"os"
 )
 
+type EC2er interface {
+	DescribeSecurityGroups(*ec2.DescribeSecurityGroupsInput) (*ec2.DescribeSecurityGroupsOutput, error)
+	DescribeInstances(*ec2.DescribeInstancesInput) (*ec2.DescribeInstancesOutput, error)
+	CreateSecurityGroup(*ec2.CreateSecurityGroupInput) (*ec2.CreateSecurityGroupOutput, error)
+	AuthorizeSecurityGroupIngress(*ec2.AuthorizeSecurityGroupIngressInput) (*ec2.AuthorizeSecurityGroupIngressOutput, error)
+	ModifyInstanceAttribute(*ec2.ModifyInstanceAttributeInput) (*ec2.ModifyInstanceAttributeOutput, error)
+}
+
 var (
 	instanceIp = flag.String("i", "", "IP of the instance we want to access")
 )
@@ -132,9 +140,9 @@ func main() {
 	}
 
 	sess := session.New()
-	e := ec2.New(sess)
+	var e EC2er = ec2.New(sess)
 
-	i, err := getInstance(e, *instanceIp)
+	i, err := getInstance(e.(*ec2.EC2), *instanceIp)
 	if err != nil {
 		log.Printf("Could't find the instance: %s", err)
 		os.Exit(1)
@@ -150,7 +158,7 @@ func main() {
 	}
 	sgName := "addsg-" + hostname
 
-	sgId, err := getSecurityGroup(e, *i.VpcId, sgName)
+	sgId, err := getSecurityGroup(e.(*ec2.EC2), *i.VpcId, sgName)
 	if err != nil {
 		log.Printf("Error searching the sg: %s", err)
 		os.Exit(1)
@@ -158,7 +166,7 @@ func main() {
 
 	if sgId == "" {
 		// create the sg
-		sg, err := createSecurityGroup(e, *i.VpcId, sgName)
+		sg, err := createSecurityGroup(e.(*ec2.EC2), *i.VpcId, sgName)
 		sgId = sg
 		if err != nil {
 			log.Printf("Error creating the sg: %s", err)
@@ -177,7 +185,7 @@ func main() {
 	}
 	log.Printf("Granting access to IP: %s", ip)
 
-	err = addIpToSecurityGroup(e, ip, sgId)
+	err = addIpToSecurityGroup(e.(*ec2.EC2), ip, sgId)
 	if err != nil {
 		if awsErr, ok := err.(awserr.Error); ok {
 			if awsErr.Code() == "InvalidPermission.Duplicate" {
@@ -192,7 +200,7 @@ func main() {
 		}
 	}
 
-	s, err := addSecurityGroupToInstance(e, i, sgId)
+	s, err := addSecurityGroupToInstance(e.(*ec2.EC2), i, sgId)
 	_ = s
 	if err != nil {
 		log.Printf("Couldn't add instance to sg: %s", err)
