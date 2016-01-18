@@ -21,6 +21,8 @@ type EC2er interface {
 	ModifyInstanceAttribute(*ec2.ModifyInstanceAttributeInput) (*ec2.ModifyInstanceAttributeOutput, error)
 }
 
+var _ EC2er = (*ec2.EC2)(nil)
+
 var (
 	instanceIp = flag.String("i", "", "IP of the instance we want to access")
 )
