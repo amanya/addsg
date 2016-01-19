@@ -32,7 +32,7 @@ func usage() {
 	os.Exit(1)
 }
 
-func getSecurityGroup(e *ec2.EC2, vpcId string, sgName string) (string, error) {
+func getSecurityGroup(e EC2er, vpcId string, sgName string) (string, error) {
 	r, err := e.DescribeSecurityGroups(&ec2.DescribeSecurityGroupsInput{
 		Filters: []*ec2.Filter{
 			&ec2.Filter{
@@ -60,7 +60,7 @@ func getSecurityGroup(e *ec2.EC2, vpcId string, sgName string) (string, error) {
 	return *r.SecurityGroups[0].GroupId, nil
 }
 
-func getInstance(e *ec2.EC2, instanceIp string) (*ec2.Instance, error) {
+func getInstance(e EC2er, instanceIp string) (*ec2.Instance, error) {
 	params := &ec2.DescribeInstancesInput{
 		Filters: []*ec2.Filter{
 			&ec2.Filter{
@@ -84,7 +84,7 @@ func getInstance(e *ec2.EC2, instanceIp string) (*ec2.Instance, error) {
 	return r.Reservations[0].Instances[0], nil
 }
 
-func createSecurityGroup(e *ec2.EC2, vpcId string, sgName string) (string, error) {
+func createSecurityGroup(e EC2er, vpcId string, sgName string) (string, error) {
 	securityGroupOpts := &ec2.CreateSecurityGroupInput{}
 	securityGroupOpts.VpcId = aws.String(vpcId)
 	securityGroupOpts.Description = aws.String("Created by addsg")
@@ -98,7 +98,7 @@ func createSecurityGroup(e *ec2.EC2, vpcId string, sgName string) (string, error
 	return *r.GroupId, nil
 }
 
-func addIpToSecurityGroup(e *ec2.EC2, ip string, sgId string) error {
+func addIpToSecurityGroup(e EC2er, ip string, sgId string) error {
 	r, err := e.AuthorizeSecurityGroupIngress(&ec2.AuthorizeSecurityGroupIngressInput{
 		CidrIp:     aws.String(ip + "/32"),
 		FromPort:   aws.Int64(22),
@@ -111,7 +111,7 @@ func addIpToSecurityGroup(e *ec2.EC2, ip string, sgId string) error {
 	return err
 }
 
-func addSecurityGroupToInstance(e *ec2.EC2, i *ec2.Instance, sgId string) (string, error) {
+func addSecurityGroupToInstance(e EC2er, i *ec2.Instance, sgId string) (string, error) {
 	var groups []*string
 	for _, group := range i.SecurityGroups {
 		if *group.GroupId != sgId {
