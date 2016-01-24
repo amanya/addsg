@@ -7,7 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/awslabs/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/rdegges/go-ipify"
 	"log"
 	"os"
@@ -23,6 +23,10 @@ type EC2er interface {
 
 var _ EC2er = (*ec2.EC2)(nil)
 
+type EC2Helper struct {
+	client EC2er
+}
+
 var (
 	instanceIp = flag.String("i", "", "IP of the instance we want to access")
 )
@@ -32,8 +36,8 @@ func usage() {
 	os.Exit(1)
 }
 
-func getSecurityGroup(e EC2er, vpcId string, sgName string) (string, error) {
-	r, err := e.DescribeSecurityGroups(&ec2.DescribeSecurityGroupsInput{
+func (e *EC2Helper) getSecurityGroup(vpcId string, sgName string) (string, error) {
+	r, err := e.client.DescribeSecurityGroups(&ec2.DescribeSecurityGroupsInput{
 		Filters: []*ec2.Filter{
 			&ec2.Filter{
 				Name: aws.String("vpc-id"),
@@ -60,7 +64,7 @@ func getSecurityGroup(e EC2er, vpcId string, sgName string) (string, error) {
 	return *r.SecurityGroups[0].GroupId, nil
 }
 
-func getInstance(e EC2er, instanceIp string) (*ec2.Instance, error) {
+func (e *EC2Helper) getInstance(instanceIp string) (*ec2.Instance, error) {
 	params := &ec2.DescribeInstancesInput{
 		Filters: []*ec2.Filter{
 			&ec2.Filter{
@@ -72,7 +76,7 @@ func getInstance(e EC2er, instanceIp string) (*ec2.Instance, error) {
 		},
 	}
 
-	r, err := e.DescribeInstances(params)
+	r, err := e.client.DescribeInstances(params)
 	if err != nil {
 		return nil, err
 	}
@@ -84,13 +88,13 @@ func getInstance(e EC2er, instanceIp string) (*ec2.Instance, error) {
 	return r.Reservations[0].Instances[0], nil
 }
 
-func createSecurityGroup(e EC2er, vpcId string, sgName string) (string, error) {
+func (e *EC2Helper) createSecurityGroup(vpcId string, sgName string) (string, error) {
 	securityGroupOpts := &ec2.CreateSecurityGroupInput{}
 	securityGroupOpts.VpcId = aws.String(vpcId)
 	securityGroupOpts.Description = aws.String("Created by addsg")
 	securityGroupOpts.GroupName = aws.String(sgName)
 
-	r, err := e.CreateSecurityGroup(securityGroupOpts)
+	r, err := e.client.CreateSecurityGroup(securityGroupOpts)
 	if err != nil {
 		return "", err
 	}
@@ -98,8 +102,8 @@ func createSecurityGroup(e EC2er, vpcId string, sgName string) (string, error) {
 	return *r.GroupId, nil
 }
 
-func addIpToSecurityGroup(e EC2er, ip string, sgId string) error {
-	r, err := e.AuthorizeSecurityGroupIngress(&ec2.AuthorizeSecurityGroupIngressInput{
+func (e *EC2Helper) addIpToSecurityGroup(ip string, sgId string) error {
+	r, err := e.client.AuthorizeSecurityGroupIngress(&ec2.AuthorizeSecurityGroupIngressInput{
 		CidrIp:     aws.String(ip + "/32"),
 		FromPort:   aws.Int64(22),
 		ToPort:     aws.Int64(22),
@@ -111,7 +115,7 @@ func addIpToSecurityGroup(e EC2er, ip string, sgId string) error {
 	return err
 }
 
-func addSecurityGroupToInstance(e EC2er, i *ec2.Instance, sgId string) (string, error) {
+func (e *EC2Helper) addSecurityGroupToInstance(i *ec2.Instance, sgId string) (string, error) {
 	var groups []*string
 	for _, group := range i.SecurityGroups {
 		if *group.GroupId != sgId {
@@ -123,7 +127,7 @@ func addSecurityGroupToInstance(e EC2er, i *ec2.Instance, sgId string) (string, 
 
 	groups = append(groups, &sgId)
 
-	_, err := e.ModifyInstanceAttribute(&ec2.ModifyInstanceAttributeInput{
+	_, err := e.client.ModifyInstanceAttribute(&ec2.ModifyInstanceAttributeInput{
 		InstanceId: aws.String(*i.InstanceId),
 		Groups:     groups,
 	})
@@ -144,7 +148,9 @@ func main() {
 	sess := session.New()
 	var e EC2er = ec2.New(sess)
 
-	i, err := getInstance(e.(*ec2.EC2), *instanceIp)
+	helper := &EC2Helper{e}
+
+	i, err := helper.getInstance(*instanceIp)
 	if err != nil {
 		log.Printf("Could't find the instance: %s", err)
 		os.Exit(1)
@@ -160,7 +166,7 @@ func main() {
 	}
 	sgName := "addsg-" + hostname
 
-	sgId, err := getSecurityGroup(e.(*ec2.EC2), *i.VpcId, sgName)
+	sgId, err := helper.getSecurityGroup(*i.VpcId, sgName)
 	if err != nil {
 		log.Printf("Error searching the sg: %s", err)
 		os.Exit(1)
@@ -168,7 +174,7 @@ func main() {
 
 	if sgId == "" {
 		// create the sg
-		sg, err := createSecurityGroup(e.(*ec2.EC2), *i.VpcId, sgName)
+		sg, err := helper.createSecurityGroup(*i.VpcId, sgName)
 		sgId = sg
 		if err != nil {
 			log.Printf("Error creating the sg: %s", err)
@@ -187,7 +193,7 @@ func main() {
 	}
 	log.Printf("Granting access to IP: %s", ip)
 
-	err = addIpToSecurityGroup(e.(*ec2.EC2), ip, sgId)
+	err = helper.addIpToSecurityGroup(ip, sgId)
 	if err != nil {
 		if awsErr, ok := err.(awserr.Error); ok {
 			if awsErr.Code() == "InvalidPermission.Duplicate" {
@@ -202,12 +208,11 @@ func main() {
 		}
 	}
 
-	s, err := addSecurityGroupToInstance(e.(*ec2.EC2), i, sgId)
+	s, err := helper.addSecurityGroupToInstance(i, sgId)
 	_ = s
 	if err != nil {
 		log.Printf("Couldn't add instance to sg: %s", err)
 		os.Exit(1)
 	}
 	log.Printf("Done")
-
 }
