@@ -166,13 +166,13 @@ func (e *EC2Helper) addIpToSecurityGroup(ip string, sgId string) error {
 	return err
 }
 
-func (e *EC2Helper) addSecurityGroupToInstance(i *ec2.Instance, sgId string) (string, error) {
+func (e *EC2Helper) addSecurityGroupToInstance(i *ec2.Instance, sgId string) error {
 	var groups []*string
 	for _, group := range i.SecurityGroups {
 		if *group.GroupId != sgId {
 			groups = append(groups, group.GroupId)
 		} else {
-			return "", errors.New("instance already has the security group")
+			return errors.New("instance already has the security group")
 		}
 	}
 
@@ -182,10 +182,8 @@ func (e *EC2Helper) addSecurityGroupToInstance(i *ec2.Instance, sgId string) (st
 		InstanceId: aws.String(*i.InstanceId),
 		Groups:     groups,
 	})
-	if err != nil {
-		return "", err
-	}
-	return "", nil
+
+	return err
 }
 
 func (e *EC2Helper) removeSecurityGroupFromInstance(i *ec2.Instance, sgId string) (bool, error) {
@@ -320,8 +318,7 @@ func main() {
 		}
 	}
 
-	s, err := helper.addSecurityGroupToInstance(i, sgId)
-	_ = s
+	err = helper.addSecurityGroupToInstance(i, sgId)
 	if err != nil {
 		log.Printf("Couldn't add instance to sg: %s", err)
 		os.Exit(1)

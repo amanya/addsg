@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
@@ -82,5 +83,67 @@ func (s *AddSGSuite) TestGetInstanceFound() {
 
 	i, err := helper.getInstance("1.1.1.1")
 	s.Equal(i.InstanceId, aws.String("i-asdfasdf"))
+	s.Equal(err, nil)
+}
+
+func (s *AddSGSuite) TestCreateSecurityGroup() {
+	client := new(mocks.EC2er)
+	client.On("CreateSecurityGroup", mock.AnythingOfType("*ec2.CreateSecurityGroupInput")).Return(
+		&ec2.CreateSecurityGroupOutput{
+			GroupId: aws.String("sg-asdf"),
+		}, nil)
+
+	helper := &EC2Helper{client}
+
+	sg, err := helper.createSecurityGroup("vpc-asdf", "asdf")
+
+	s.Equal(sg, "sg-asdf")
+	s.Equal(err, nil)
+}
+
+func (s *AddSGSuite) TestAddIpToSecurityGroup() {
+	client := new(mocks.EC2er)
+	client.On("AuthorizeSecurityGroupIngress", mock.AnythingOfType("*ec2.AuthorizeSecurityGroupIngressInput")).Return(nil, nil)
+
+	helper := &EC2Helper{client}
+
+	err := helper.addIpToSecurityGroup("1.2.3.4/32", "sg-asdf")
+	s.Equal(err, nil)
+}
+
+func (s *AddSGSuite) TestInstanceAlreadyInSecurityGroup() {
+	client := new(mocks.EC2er)
+
+	i := &ec2.Instance{
+		SecurityGroups: []*ec2.GroupIdentifier{
+			&ec2.GroupIdentifier{
+				GroupId: aws.String("sg-asdf"),
+			},
+		},
+	}
+
+	helper := &EC2Helper{client}
+
+	err := helper.addSecurityGroupToInstance(i, "sg-asdf")
+	s.Equal(err, errors.New("instance already has the security group"))
+}
+
+func (s *AddSGSuite) TestAddSecurityGroupToInstance() {
+	client := new(mocks.EC2er)
+
+	i := &ec2.Instance{
+		InstanceId: aws.String("i-asdf"),
+		SecurityGroups: []*ec2.GroupIdentifier{
+			&ec2.GroupIdentifier{
+				GroupId: aws.String("sg-asdf"),
+			},
+		},
+	}
+
+	client.On("ModifyInstanceAttribute", mock.AnythingOfType("*ec2.ModifyInstanceAttributeInput")).Return(nil, nil)
+
+	helper := &EC2Helper{client}
+
+	err := helper.addSecurityGroupToInstance(i, "sg-qwer")
 	s.Equal(err, nil)
 }
