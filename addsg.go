@@ -271,7 +271,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	log.Printf("Found instance id: %s", i.InstanceId)
+	log.Printf("Found instance id: %s", *i.InstanceId)
 	log.Printf("Found VPC id: %s", *i.VpcId)
 
 	sgName := makeSgName()
