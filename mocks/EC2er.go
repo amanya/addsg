@@ -122,3 +122,26 @@ func (_m *EC2er) ModifyInstanceAttribute(_a0 *ec2.ModifyInstanceAttributeInput) 
 
 	return r0, r1
 }
+
+// DeleteSecurityGroup provides a mock function with given fields: _a0
+func (_m *EC2er) DeleteSecurityGroup(_a0 *ec2.DeleteSecurityGroupInput) (*ec2.DeleteSecurityGroupOutput, error) {
+	ret := _m.Called(_a0)
+
+	var r0 *ec2.DeleteSecurityGroupOutput
+	if rf, ok := ret.Get(0).(func(*ec2.DeleteSecurityGroupInput) *ec2.DeleteSecurityGroupOutput); ok {
+		r0 = rf(_a0)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*ec2.DeleteSecurityGroupOutput)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(*ec2.DeleteSecurityGroupInput) error); ok {
+		r1 = rf(_a0)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
